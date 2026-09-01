@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAppAuth } from "@/lib/app-auth-middleware";
 import { getSubscriptionStatus } from "./subscription.server";
 
 const InputSchema = z.object({
@@ -23,7 +23,7 @@ const InputSchema = z.object({
 });
 
 export const generateLessonPackage = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAppAuth])
   .validator((input: unknown) => InputSchema.parse(input))
   .handler(async ({ data, context }) => {
     // Subscription gate: check before generating

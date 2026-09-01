@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAppAuth } from "@/lib/app-auth-middleware";
 import {
   getSubscriptionStatus,
   incrementGenerationUsage,
@@ -12,20 +12,20 @@ import {
 export type { SubscriptionStatus };
 
 export const getMySubscription = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAppAuth])
   .handler(async ({ context }): Promise<SubscriptionStatus> => {
     return getSubscriptionStatus(context.supabase, context.userId);
   });
 
 export const useGeneration = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAppAuth])
   .handler(async ({ context }) => {
     await incrementGenerationUsage(context.supabase, context.userId);
     return { ok: true };
   });
 
 export const saveProfile = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAppAuth])
   .validator(
     (input: unknown) =>
       z

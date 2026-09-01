@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAppAuth } from "@/lib/app-auth-middleware";
 import type { LessonPackage } from "./lesson-types";
 
 const PackageSchema = z.record(z.string(), z.unknown());
@@ -13,7 +13,7 @@ function makeToken() {
 }
 
 export const createShare = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAppAuth])
   .validator((input: unknown) =>
     z.object({ title: z.string().min(1).max(200), package: PackageSchema }).parse(input),
   )

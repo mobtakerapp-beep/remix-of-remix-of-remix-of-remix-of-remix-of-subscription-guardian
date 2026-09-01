@@ -10,7 +10,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useI18n } from "@/lib/i18n";
 import { getMySubscription, saveProfile, type SubscriptionStatus } from "@/lib/subscription.functions";
-import { amIAdmin } from "@/lib/access.functions";
+import { isAdminClient } from "@/lib/admin-client";
 import { setIsPremium } from "@/lib/premium-flag";
 
 
@@ -23,7 +23,6 @@ export function SubscriptionBadge({
   const ar = lang === "ar";
   const fetchSub = useServerFn(getMySubscription);
   const saveProfileFn = useServerFn(saveProfile);
-  const fetchAdmin = useServerFn(amIAdmin);
   const [status, setStatus] = useState<SubscriptionStatus | null>(null);
   const [signedIn, setSignedIn] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -46,17 +45,12 @@ export function SubscriptionBadge({
         setIsPremium(s.plan !== "free" && s.status === "active");
         setTeacherName(s.teacherName);
         setSchool(s.school);
-        try {
-          const a = await fetchAdmin({ data: undefined } as never);
-          setIsAdmin(Boolean(a?.isAdmin));
-        } catch {
-          setIsAdmin(false);
-        }
+        setIsAdmin(await isAdminClient());
       } catch {
         // not logged in or error — ignore
       }
     })();
-  }, [fetchSub, fetchAdmin]);
+  }, [fetchSub]);
 
   const logout = async () => {
     await supabase.auth.signOut();

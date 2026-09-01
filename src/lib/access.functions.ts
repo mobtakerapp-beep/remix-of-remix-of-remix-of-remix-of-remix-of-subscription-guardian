@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAppAuth } from "@/lib/app-auth-middleware";
 
 export type CodeRow = {
   id: string;
@@ -64,7 +64,7 @@ async function assertAdmin(userId: string, email?: unknown, supabase?: unknown) 
 }
 
 export const amIAdmin = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAppAuth])
   .handler(async ({ context }) => {
     if (isConfiguredAdminEmail(getClaimEmail(context.claims))) {
       return { isAdmin: true };
@@ -75,7 +75,7 @@ export const amIAdmin = createServerFn({ method: "GET" })
 
 /** Redeem an activation code — binds the subscription to the signed-in account. */
 export const redeemCode = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAppAuth])
   .validator((input: unknown) =>
     z
       .object({
@@ -148,7 +148,7 @@ export const redeemCode = createServerFn({ method: "POST" })
   });
 
 export const adminListCodes = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAppAuth])
   .handler(async ({ context }): Promise<CodeRow[]> => {
     await assertAdmin(context.userId, getClaimEmail(context.claims), context.supabase);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -171,7 +171,7 @@ export const adminListCodes = createServerFn({ method: "GET" })
   });
 
 export const adminCreateCodes = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAppAuth])
   .validator((input: unknown) =>
     z
       .object({
@@ -223,7 +223,7 @@ export type RedemptionRow = {
 
 /** Admin: list code redemptions with the subscriber's email and current expiry. */
 export const adminListRedemptions = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAppAuth])
   .handler(async ({ context }): Promise<RedemptionRow[]> => {
     await assertAdmin(context.userId, getClaimEmail(context.claims), context.supabase);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -273,7 +273,7 @@ export const adminListRedemptions = createServerFn({ method: "GET" })
   });
 
 export const adminSetCodeActive = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAppAuth])
   .validator((input: unknown) =>
     z.object({ id: z.string().uuid(), active: z.boolean() }).parse(input),
   )
