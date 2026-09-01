@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAppAuth } from "@/lib/app-auth-middleware";
 import type { LessonPackage } from "./lesson-types";
 
 const SummaryPointSchema = z.object({
@@ -66,7 +66,7 @@ function toSavedLesson(row: Record<string, unknown>): SavedLesson {
 }
 
 export const listMyLessons = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAppAuth])
   .handler(async ({ context }): Promise<SavedLesson[]> => {
     const { data, error } = await context.supabase
       .from("user_lessons" as any)
@@ -79,7 +79,7 @@ export const listMyLessons = createServerFn({ method: "GET" })
   });
 
 export const getLessonById = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAppAuth])
   .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }): Promise<SavedLesson> => {
     const { data: row, error } = await context.supabase
@@ -94,12 +94,9 @@ export const getLessonById = createServerFn({ method: "GET" })
   });
 
 export const saveLesson = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .validator(
-    (input: unknown) =>
-      z
-        .object({ title: z.string().min(1).max(200), package: LessonPackageSchema })
-        .parse(input),
+  .middleware([requireAppAuth])
+  .validator((input: unknown) =>
+    z.object({ title: z.string().min(1).max(200), package: LessonPackageSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<SavedLesson> => {
     const { data: inserted, error } = await context.supabase
@@ -112,16 +109,15 @@ export const saveLesson = createServerFn({ method: "POST" })
   });
 
 export const updateLesson = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .validator(
-    (input: unknown) =>
-      z
-        .object({
-          id: z.string().uuid(),
-          title: z.string().min(1).max(200).optional(),
-          package: LessonPackageSchema.optional(),
-        })
-        .parse(input),
+  .middleware([requireAppAuth])
+  .validator((input: unknown) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        title: z.string().min(1).max(200).optional(),
+        package: LessonPackageSchema.optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ data, context }): Promise<SavedLesson> => {
     const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -139,7 +135,7 @@ export const updateLesson = createServerFn({ method: "POST" })
   });
 
 export const deleteLesson = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireAppAuth])
   .validator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase
