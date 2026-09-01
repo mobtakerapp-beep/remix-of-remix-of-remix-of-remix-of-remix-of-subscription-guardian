@@ -26,14 +26,13 @@ export const useGeneration = createServerFn({ method: "POST" })
 
 export const saveProfile = createServerFn({ method: "POST" })
   .middleware([requireAppAuth])
-  .validator(
-    (input: unknown) =>
-      z
-        .object({
-          teacherName: z.string().max(100),
-          school: z.string().max(200),
-        })
-        .parse(input),
+  .validator((input: unknown) =>
+    z
+      .object({
+        teacherName: z.string().max(100),
+        school: z.string().max(200),
+      })
+      .parse(input),
   )
   .handler(async ({ data, context }) => {
     await updateProfile(context.supabase, context.userId, data.teacherName, data.school);

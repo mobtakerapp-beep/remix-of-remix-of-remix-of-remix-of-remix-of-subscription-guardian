@@ -29,11 +29,7 @@ export const generateLessonPackage = createServerFn({ method: "POST" })
     // Subscription gate: check before generating
     const status = await getSubscriptionStatus(context.supabase, context.userId);
     if (!status.canGenerate) {
-      throw new Error(
-        status.plan === "free"
-          ? "limit_reached"
-          : "subscription_expired",
-      );
+      throw new Error(status.plan === "free" ? "limit_reached" : "subscription_expired");
     }
 
     const key = process.env["LOVABLE_API_KEY"];
@@ -48,10 +44,7 @@ export const generateLessonPackage = createServerFn({ method: "POST" })
       const { title, text } = await fetchYoutubeTranscript(data.youtubeUrl ?? "", transcriptKey);
 
       const { youtubeUrl: _ignored, ...rest } = data;
-      return buildLessonPackage(
-        { ...rest, mode: "text", text: `${title}\n\n${text}` },
-        key,
-      );
+      return buildLessonPackage({ ...rest, mode: "text", text: `${title}\n\n${text}` }, key);
     }
 
     const { youtubeUrl: _unused, ...payload } = data;

@@ -72,7 +72,6 @@ export const amIAdmin = createServerFn({ method: "GET" })
     return { isAdmin: await hasAdminRole(context.supabase, context.userId) };
   });
 
-
 /** Redeem an activation code — binds the subscription to the signed-in account. */
 export const redeemCode = createServerFn({ method: "POST" })
   .middleware([requireAppAuth])

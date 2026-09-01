@@ -9,16 +9,15 @@ import { Label } from "@/components/ui/label";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useI18n } from "@/lib/i18n";
-import { getMySubscription, saveProfile, type SubscriptionStatus } from "@/lib/subscription.functions";
+import {
+  getMySubscription,
+  saveProfile,
+  type SubscriptionStatus,
+} from "@/lib/subscription.functions";
 import { isAdminClient } from "@/lib/admin-client";
 import { setIsPremium } from "@/lib/premium-flag";
 
-
-export function SubscriptionBadge({
-  onLimitReached,
-}: {
-  onLimitReached?: () => void;
-}) {
+export function SubscriptionBadge({ onLimitReached }: { onLimitReached?: () => void }) {
   const { t, lang } = useI18n();
   const ar = lang === "ar";
   const fetchSub = useServerFn(getMySubscription);
@@ -108,10 +107,14 @@ export function SubscriptionBadge({
         <Sparkles className="me-1 size-3.5" /> {ar ? "بياناتي" : "My profile"}
       </Button>
 
-      <Button asChild size="sm" className="rounded-full gradient-warm text-xs text-primary-foreground">
+      <Button
+        asChild
+        size="sm"
+        className="rounded-full gradient-warm text-xs text-primary-foreground"
+      >
         <Link to="/subscribe">
           <Crown className="me-1 size-3.5" />
-          {isFree ? (ar ? "اشترك الآن" : "Subscribe") : (ar ? "إدارة الاشتراك" : "Manage plan")}
+          {isFree ? (ar ? "اشترك الآن" : "Subscribe") : ar ? "إدارة الاشتراك" : "Manage plan"}
         </Link>
       </Button>
 
@@ -163,10 +166,20 @@ export function SubscriptionBadge({
             </div>
           </div>
           <div className="mt-3 flex gap-2">
-            <Button size="sm" className="rounded-full" onClick={() => void save()} disabled={saving}>
-              {saving ? (ar ? "جارٍ الحفظ…" : "Saving…") : (ar ? "حفظ" : "Save")}
+            <Button
+              size="sm"
+              className="rounded-full"
+              onClick={() => void save()}
+              disabled={saving}
+            >
+              {saving ? (ar ? "جارٍ الحفظ…" : "Saving…") : ar ? "حفظ" : "Save"}
             </Button>
-            <Button size="sm" variant="outline" className="rounded-full" onClick={() => setEditing(false)}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-full"
+              onClick={() => setEditing(false)}
+            >
               {ar ? "إلغاء" : "Cancel"}
             </Button>
             <Button asChild size="sm" variant="outline" className="rounded-full">

@@ -9,7 +9,9 @@ const PackageSchema = z.record(z.string(), z.unknown());
 function makeToken() {
   const bytes = new Uint8Array(12);
   crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => b.toString(36).padStart(2, "0")).join("").slice(0, 22);
+  return Array.from(bytes, (b) => b.toString(36).padStart(2, "0"))
+    .join("")
+    .slice(0, 22);
 }
 
 export const createShare = createServerFn({ method: "POST" })
@@ -19,22 +21,18 @@ export const createShare = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<{ token: string }> => {
     const token = makeToken();
-    const { error } = await context.supabase
-      .from("lesson_shares" as never)
-      .insert({
-        user_id: context.userId,
-        title: data.title,
-        package: data.package,
-        token,
-      } as never);
+    const { error } = await context.supabase.from("lesson_shares" as never).insert({
+      user_id: context.userId,
+      title: data.title,
+      package: data.package,
+      token,
+    } as never);
     if (error) throw new Error(error.message);
     return { token };
   });
 
 export const getSharedLesson = createServerFn({ method: "GET" })
-  .validator((input: unknown) =>
-    z.object({ token: z.string().min(6).max(64) }).parse(input),
-  )
+  .validator((input: unknown) => z.object({ token: z.string().min(6).max(64) }).parse(input))
   .handler(async ({ data }): Promise<{ title: string; package: LessonPackage }> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: row, error } = await supabaseAdmin

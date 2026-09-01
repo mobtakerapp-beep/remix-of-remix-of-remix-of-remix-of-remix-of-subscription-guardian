@@ -95,11 +95,8 @@ export const getLessonById = createServerFn({ method: "GET" })
 
 export const saveLesson = createServerFn({ method: "POST" })
   .middleware([requireAppAuth])
-  .validator(
-    (input: unknown) =>
-      z
-        .object({ title: z.string().min(1).max(200), package: LessonPackageSchema })
-        .parse(input),
+  .validator((input: unknown) =>
+    z.object({ title: z.string().min(1).max(200), package: LessonPackageSchema }).parse(input),
   )
   .handler(async ({ data, context }): Promise<SavedLesson> => {
     const { data: inserted, error } = await context.supabase
@@ -113,15 +110,14 @@ export const saveLesson = createServerFn({ method: "POST" })
 
 export const updateLesson = createServerFn({ method: "POST" })
   .middleware([requireAppAuth])
-  .validator(
-    (input: unknown) =>
-      z
-        .object({
-          id: z.string().uuid(),
-          title: z.string().min(1).max(200).optional(),
-          package: LessonPackageSchema.optional(),
-        })
-        .parse(input),
+  .validator((input: unknown) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        title: z.string().min(1).max(200).optional(),
+        package: LessonPackageSchema.optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ data, context }): Promise<SavedLesson> => {
     const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
