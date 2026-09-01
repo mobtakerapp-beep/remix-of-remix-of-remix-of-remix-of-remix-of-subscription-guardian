@@ -326,32 +326,63 @@ export async function buildLessonPackage(
     };
   });
 
+  // Google Gemini's native REST shape (used for the direct GEMINI_API_KEY path,
+  // because it accepts PDFs and images as inline_data).
+  const geminiParts = parts.map((part) => {
+    if (part.type === "text") return { text: part.text };
+    const dataUrl = part.type === "image_url" ? part.image_url.url : part.file.file_data;
+    const match = /^data:([^;]+);base64,(.*)$/s.exec(dataUrl);
+    return {
+      inline_data: {
+        mime_type: match?.[1] ?? data.mediaType ?? "application/octet-stream",
+        data: match?.[2] ?? dataUrl,
+      },
+    };
+  });
+
   let lastError = "تعذّر توليد الدرس الآن.";
   for (const ai of providers) {
+    const isGemini = ai.provider === "gemini";
+    const url = isGemini
+      ? `https://generativelanguage.googleapis.com/v1beta/models/${ai.model}:generateContent`
+      : ai.url;
     // One delayed retry for transient failures, then continue to the next
     // configured provider. There is deliberately no immediate retry loop.
     for (let attempt = 0; attempt < 2; attempt++) {
-      const response = await fetch(ai.url, {
+      const response = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(ai.provider === "lovable"
-            ? { "Lovable-API-Key": ai.key, "X-Lovable-AIG-SDK": "direct-fetch" }
-            : { Authorization: `Bearer ${ai.key}` }),
+          ...(isGemini
+            ? { "x-goog-api-key": ai.key }
+            : { "Lovable-API-Key": ai.key, "X-Lovable-AIG-SDK": "direct-fetch" }),
         },
-        body: JSON.stringify({
-          model: ai.model,
-          messages: [{ role: "user", content: messageContent }],
-          response_format: { type: "json_object" },
-          max_tokens: 16000,
-        }),
+        body: JSON.stringify(
+          isGemini
+            ? {
+                contents: [{ role: "user", parts: geminiParts }],
+                generationConfig: {
+                  responseMimeType: "application/json",
+                  maxOutputTokens: 16000,
+                },
+              }
+            : {
+                model: ai.model,
+                messages: [{ role: "user", content: messageContent }],
+                response_format: { type: "json_object" },
+                max_tokens: 16000,
+              },
+        ),
       });
 
       if (response.ok) {
         const json = (await response.json()) as {
           choices?: Array<{ message?: { content?: string } }>;
+          candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
         };
-        const text = json.choices?.[0]?.message?.content ?? "";
+        const text = isGemini
+          ? (json.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? "").join("")
+          : (json.choices?.[0]?.message?.content ?? "");
         if (text.trim()) return normalize(extractJson(text), data);
         lastError = "أعاد مزود الذكاء الاصطناعي استجابة فارغة.";
         break;
@@ -368,6 +399,7 @@ export async function buildLessonPackage(
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }
+
 
   throw new Error(lastError);
 }
