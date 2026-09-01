@@ -33,8 +33,8 @@ export const generateLessonPackage = createServerFn({ method: "POST" })
       throw new Error(status.plan === "free" ? "limit_reached" : "subscription_expired");
     }
 
-    const { buildLessonPackage, resolveAiConfig } = await import("./lesson.server");
-    const ai = resolveAiConfig();
+    const { buildLessonPackage, resolveAiConfigs } = await import("./lesson.server");
+    const providers = resolveAiConfigs();
 
     if (data.mode === "youtube") {
       const { fetchYoutubeTranscript } = await import("./youtube.server");
@@ -43,9 +43,9 @@ export const generateLessonPackage = createServerFn({ method: "POST" })
       const { title, text } = await fetchYoutubeTranscript(data.youtubeUrl ?? "", transcriptKey);
 
       const { youtubeUrl: _ignored, ...rest } = data;
-      return buildLessonPackage({ ...rest, mode: "text", text: `${title}\n\n${text}` }, ai);
+      return buildLessonPackage({ ...rest, mode: "text", text: `${title}\n\n${text}` }, providers);
     }
 
     const { youtubeUrl: _unused, ...payload } = data;
-    return buildLessonPackage(payload as never, ai);
+    return buildLessonPackage(payload as never, providers);
   });

@@ -248,29 +248,46 @@ function normalize(parsed: any, data: Input): LessonPackage {
  * LOVABLE_API_KEY is present; on external deploys (e.g. a standalone
  * Cloudflare Worker) it is not, so we fall back to a direct OpenAI key.
  */
-export function resolveAiConfig(): { url: string; key: string; model: string } {
+export type AiConfig = {
+  provider: "lovable" | "openai";
+  url: string;
+  key: string;
+  model: string;
+};
+
+/** Return every configured provider in priority order, so one provider's
+ * quota/rate limit never prevents an external deployment using the other. */
+export function resolveAiConfigs(): AiConfig[] {
+  const configs: AiConfig[] = [];
   const lovableKey = getRuntimeSecret("LOVABLE_API_KEY");
   if (lovableKey) {
-    return {
+    configs.push({
+      provider: "lovable",
       url: "https://ai.gateway.lovable.dev/v1/chat/completions",
       key: lovableKey,
       model: "google/gemini-2.5-flash",
-    };
+    });
   }
   const openaiKey = getRuntimeSecret("OPENAI_API_KEY");
   if (openaiKey) {
-    return {
+    configs.push({
+      provider: "openai",
       url: "https://api.openai.com/v1/chat/completions",
       key: openaiKey,
       model: "gpt-4o-mini",
-    };
+    });
   }
-  throw new Error("Missing AI key (LOVABLE_API_KEY or OPENAI_API_KEY)");
+  if (configs.length === 0) {
+    throw new Error(
+      "مفتاح الذكاء الاصطناعي غير متاح للسيرفر. أضف OPENAI_API_KEY كـ Secret binding ثم أعد نشر الـWorker.",
+    );
+  }
+  return configs;
 }
 
 export async function buildLessonPackage(
   data: Input,
-  ai: { url: string; key: string; model: string },
+  providers: AiConfig[],
 ): Promise<LessonPackage> {
   const parts: UserPart[] = [{ type: "text", text: buildPrompt(data) }];
 
@@ -308,32 +325,48 @@ export async function buildLessonPackage(
     };
   });
 
-  const response = await fetch(ai.url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${ai.key}`,
-    },
-    body: JSON.stringify({
-      model: ai.model,
-      messages: [{ role: "user", content: messageContent }],
-      response_format: { type: "json_object" },
-      max_tokens: 16000,
-    }),
-  });
+  let lastError = "تعذّر توليد الدرس الآن.";
+  for (const ai of providers) {
+    // One delayed retry for transient failures, then continue to the next
+    // configured provider. There is deliberately no immediate retry loop.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const response = await fetch(ai.url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(ai.provider === "lovable"
+            ? { "Lovable-API-Key": ai.key, "X-Lovable-AIG-SDK": "direct-fetch" }
+            : { Authorization: `Bearer ${ai.key}` }),
+        },
+        body: JSON.stringify({
+          model: ai.model,
+          messages: [{ role: "user", content: messageContent }],
+          response_format: { type: "json_object" },
+          max_tokens: 16000,
+        }),
+      });
 
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "");
-    if (response.status === 429) throw new Error("Too many requests right now. Please wait a moment and try again.");
-    if (response.status === 402) throw new Error("AI credits are exhausted. Please top up the workspace.");
-    if (response.status === 401) throw new Error("The AI key was rejected.");
-    throw new Error(`AI request failed (${response.status}). ${detail.slice(0, 300)}`);
+      if (response.ok) {
+        const json = (await response.json()) as {
+          choices?: Array<{ message?: { content?: string } }>;
+        };
+        const text = json.choices?.[0]?.message?.content ?? "";
+        if (text.trim()) return normalize(extractJson(text), data);
+        lastError = "أعاد مزود الذكاء الاصطناعي استجابة فارغة.";
+        break;
+      }
+
+      const detail = await response.text().catch(() => "");
+      lastError = detail.slice(0, 300) || `AI request failed (${response.status})`;
+      const retryable = response.status === 429 || response.status >= 500;
+      if (!retryable || attempt === 1) break;
+      const retryAfter = Number(response.headers.get("Retry-After"));
+      const delayMs = Number.isFinite(retryAfter) && retryAfter > 0
+        ? Math.min(retryAfter * 1000, 10_000)
+        : 1200 + Math.floor(Math.random() * 500);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
   }
 
-  const json = (await response.json()) as {
-    choices?: Array<{ message?: { content?: string } }>;
-  };
-  const text = json.choices?.[0]?.message?.content ?? "";
-  if (!text.trim()) throw new Error("The AI returned an empty response. Please try again.");
-  return normalize(extractJson(text), data);
+  throw new Error(lastError);
 }
