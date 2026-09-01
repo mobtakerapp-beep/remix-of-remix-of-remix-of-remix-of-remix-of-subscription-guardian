@@ -246,10 +246,10 @@ function normalize(parsed: any, data: Input): LessonPackage {
 /**
  * Resolve which AI backend to use. On Lovable Cloud the managed
  * LOVABLE_API_KEY is present; on external deploys (e.g. a standalone
- * Cloudflare Worker) it is not, so we fall back to a direct OpenAI key.
+ * Cloudflare Worker) it is not, so we fall back to Google Gemini.
  */
 export type AiConfig = {
-  provider: "lovable" | "openai";
+  provider: "lovable" | "gemini";
   url: string;
   key: string;
   model: string;
@@ -268,22 +268,23 @@ export function resolveAiConfigs(): AiConfig[] {
       model: "google/gemini-2.5-flash",
     });
   }
-  const openaiKey = getRuntimeSecret("OPENAI_API_KEY");
-  if (openaiKey) {
+  const geminiKey = getRuntimeSecret("GEMINI_API_KEY");
+  if (geminiKey) {
     configs.push({
-      provider: "openai",
-      url: "https://api.openai.com/v1/chat/completions",
-      key: openaiKey,
-      model: "gpt-4o-mini",
+      provider: "gemini",
+      url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+      key: geminiKey,
+      model: "gemini-2.5-flash",
     });
   }
   if (configs.length === 0) {
     throw new Error(
-      "مفتاح الذكاء الاصطناعي غير متاح للسيرفر. أضف OPENAI_API_KEY كـ Secret binding ثم أعد نشر الـWorker.",
+      "مفتاح الذكاء الاصطناعي غير متاح للسيرفر. أضف GEMINI_API_KEY كـ Secret binding ثم أعد نشر الـWorker.",
     );
   }
   return configs;
 }
+
 
 export async function buildLessonPackage(
   data: Input,
