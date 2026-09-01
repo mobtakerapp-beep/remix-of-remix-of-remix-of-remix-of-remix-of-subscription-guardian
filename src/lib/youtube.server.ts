@@ -427,7 +427,9 @@ export async function transcribeYoutubeAudio(videoId: string, apiKey?: string): 
 
         const response = await fetch(p.url, {
           method: "POST",
-          headers: { Authorization: `Bearer ${p.key}` },
+          headers: p.openai
+            ? { Authorization: `Bearer ${p.key}` }
+            : { "Lovable-API-Key": p.key, "X-Lovable-AIG-SDK": "direct-fetch" },
           body: form,
         });
         if (!response.ok) {
