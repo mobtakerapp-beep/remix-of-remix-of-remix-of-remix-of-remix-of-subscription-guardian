@@ -253,29 +253,31 @@ async function readTranscriptionResponse(response: Response): Promise<string> {
 
 /**
  * Caption-free fallback: download the video's audio track directly from
- * YouTube's streaming data and transcribe it with OpenAI. Pure fetch, so it
- * runs in the edge runtime (no yt-dlp / child_process).
+ * YouTube's streaming data and transcribe it (Lovable AI first, then Google
+ * Gemini). Pure fetch, so it runs in the edge runtime (no yt-dlp).
  */
 export async function transcribeYoutubeAudio(videoId: string, apiKey?: string): Promise<string> {
   const { getRuntimeSecret } = await import("./runtime-env.server");
   const lovableKey = getRuntimeSecret("LOVABLE_API_KEY");
-  // Prefer Lovable AI (no extra key / quota needed); fall back to OpenAI directly.
-  const providers: { url: string; key: string; model: string; openai: boolean }[] = [];
+  const geminiKey = apiKey ?? getRuntimeSecret("GEMINI_API_KEY");
+  // Prefer Lovable AI (no extra key / quota needed); fall back to Gemini directly.
+  const providers: { url: string; key: string; model: string; gemini: boolean }[] = [];
   if (lovableKey)
     providers.push({
       url: "https://ai.gateway.lovable.dev/v1/audio/transcriptions",
       key: lovableKey,
       model: "openai/gpt-4o-transcribe",
-      openai: false,
+      gemini: false,
     });
-  if (apiKey)
+  if (geminiKey)
     providers.push({
-      url: "https://api.openai.com/v1/audio/transcriptions",
-      key: apiKey,
-      model: "gpt-4o-mini-transcribe",
-      openai: true,
+      url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+      key: geminiKey,
+      model: "gemini-2.5-flash",
+      gemini: true,
     });
   if (providers.length === 0) throw new Error("youtube_transcription_unavailable");
+
 
   // Collect audio streams from every innertube client. Mobile clients (ANDROID
   // / IOS) return URLs that download without a PoToken, but only when the
