@@ -103,8 +103,8 @@ export async function createCodesClient(input: {
   plan: "monthly" | "yearly";
   durationDays: number;
   maxUses: number;
-  note?: string;
-  notes?: string[];
+  note?: string | undefined;
+  notes?: string[] | undefined;
 }): Promise<{ codes: string[] }> {
   const { data: userData } = await supabase.auth.getUser();
   const rows = Array.from({ length: input.count }, (_u, i) => ({

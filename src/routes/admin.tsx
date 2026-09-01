@@ -118,8 +118,8 @@ function AdminPage() {
       plan: "monthly" | "yearly";
       durationDays: number;
       maxUses: number;
-      note?: string;
-      notes?: string[];
+      note?: string | undefined;
+      notes?: string[] | undefined;
     };
   }) => {
     try {
