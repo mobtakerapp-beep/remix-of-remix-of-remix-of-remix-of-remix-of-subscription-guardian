@@ -246,10 +246,10 @@ function normalize(parsed: any, data: Input): LessonPackage {
 /**
  * Resolve which AI backend to use. On Lovable Cloud the managed
  * LOVABLE_API_KEY is present; on external deploys (e.g. a standalone
- * Cloudflare Worker) it is not, so we fall back to a direct OpenAI key.
+ * Cloudflare Worker) it is not, so we fall back to Google Gemini.
  */
 export type AiConfig = {
-  provider: "lovable" | "openai";
+  provider: "lovable" | "gemini";
   url: string;
   key: string;
   model: string;
@@ -268,22 +268,23 @@ export function resolveAiConfigs(): AiConfig[] {
       model: "google/gemini-2.5-flash",
     });
   }
-  const openaiKey = getRuntimeSecret("OPENAI_API_KEY");
-  if (openaiKey) {
+  const geminiKey = getRuntimeSecret("GEMINI_API_KEY");
+  if (geminiKey) {
     configs.push({
-      provider: "openai",
-      url: "https://api.openai.com/v1/chat/completions",
-      key: openaiKey,
-      model: "gpt-4o-mini",
+      provider: "gemini",
+      url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+      key: geminiKey,
+      model: "gemini-2.5-flash",
     });
   }
   if (configs.length === 0) {
     throw new Error(
-      "مفتاح الذكاء الاصطناعي غير متاح للسيرفر. أضف OPENAI_API_KEY كـ Secret binding ثم أعد نشر الـWorker.",
+      "مفتاح الذكاء الاصطناعي غير متاح للسيرفر. أضف GEMINI_API_KEY كـ Secret binding ثم أعد نشر الـWorker.",
     );
   }
   return configs;
 }
+
 
 export async function buildLessonPackage(
   data: Input,
@@ -325,32 +326,63 @@ export async function buildLessonPackage(
     };
   });
 
+  // Google Gemini's native REST shape (used for the direct GEMINI_API_KEY path,
+  // because it accepts PDFs and images as inline_data).
+  const geminiParts = parts.map((part) => {
+    if (part.type === "text") return { text: part.text };
+    const dataUrl = part.type === "image_url" ? part.image_url.url : part.file.file_data;
+    const match = /^data:([^;]+);base64,(.*)$/s.exec(dataUrl);
+    return {
+      inline_data: {
+        mime_type: match?.[1] ?? data.mediaType ?? "application/octet-stream",
+        data: match?.[2] ?? dataUrl,
+      },
+    };
+  });
+
   let lastError = "تعذّر توليد الدرس الآن.";
   for (const ai of providers) {
+    const isGemini = ai.provider === "gemini";
+    const url = isGemini
+      ? `https://generativelanguage.googleapis.com/v1beta/models/${ai.model}:generateContent`
+      : ai.url;
     // One delayed retry for transient failures, then continue to the next
     // configured provider. There is deliberately no immediate retry loop.
     for (let attempt = 0; attempt < 2; attempt++) {
-      const response = await fetch(ai.url, {
+      const response = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(ai.provider === "lovable"
-            ? { "Lovable-API-Key": ai.key, "X-Lovable-AIG-SDK": "direct-fetch" }
-            : { Authorization: `Bearer ${ai.key}` }),
+          ...(isGemini
+            ? { "x-goog-api-key": ai.key }
+            : { "Lovable-API-Key": ai.key, "X-Lovable-AIG-SDK": "direct-fetch" }),
         },
-        body: JSON.stringify({
-          model: ai.model,
-          messages: [{ role: "user", content: messageContent }],
-          response_format: { type: "json_object" },
-          max_tokens: 16000,
-        }),
+        body: JSON.stringify(
+          isGemini
+            ? {
+                contents: [{ role: "user", parts: geminiParts }],
+                generationConfig: {
+                  responseMimeType: "application/json",
+                  maxOutputTokens: 16000,
+                },
+              }
+            : {
+                model: ai.model,
+                messages: [{ role: "user", content: messageContent }],
+                response_format: { type: "json_object" },
+                max_tokens: 16000,
+              },
+        ),
       });
 
       if (response.ok) {
         const json = (await response.json()) as {
           choices?: Array<{ message?: { content?: string } }>;
+          candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
         };
-        const text = json.choices?.[0]?.message?.content ?? "";
+        const text = isGemini
+          ? (json.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? "").join("")
+          : (json.choices?.[0]?.message?.content ?? "");
         if (text.trim()) return normalize(extractJson(text), data);
         lastError = "أعاد مزود الذكاء الاصطناعي استجابة فارغة.";
         break;
@@ -367,6 +399,7 @@ export async function buildLessonPackage(
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }
+
 
   throw new Error(lastError);
 }

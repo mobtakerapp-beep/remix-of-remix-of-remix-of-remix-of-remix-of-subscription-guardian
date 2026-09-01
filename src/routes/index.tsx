@@ -131,10 +131,11 @@ function Home() {
         toast.error("الفيديو طويل جدًا للتحويل الصوتي. جرّبي فيديو أقصر من نحو 45 دقيقة.");
       } else if (msg === "youtube_transcription_unavailable" || msg === "youtube_transcription_failed") {
         toast.error("تعذّر تحويل صوت الفيديو إلى نص الآن. حاولي مرة أخرى بعد قليل.");
-      } else if (msg === "openai_quota") {
+      } else if (msg === "gemini_quota" || msg === "openai_quota") {
         toast.error(t.errOpenaiQuota);
-      } else if (msg === "openai_invalid_key") {
+      } else if (msg === "gemini_invalid_key" || msg === "openai_invalid_key") {
         toast.error(t.errOpenaiKey);
+
       } else if (msg === "youtube_fetch_failed") {
         toast.error(t.errYoutubeFetch);
       } else if (msg === "Unauthorized" || /unauthorized|401/i.test(msg)) {
