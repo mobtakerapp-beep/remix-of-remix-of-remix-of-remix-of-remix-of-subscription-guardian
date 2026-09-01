@@ -242,7 +242,35 @@ function normalize(parsed: any, data: Input): LessonPackage {
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
-export async function buildLessonPackage(data: Input, apiKey: string): Promise<LessonPackage> {
+/**
+ * Resolve which AI backend to use. On Lovable Cloud the managed
+ * LOVABLE_API_KEY is present; on external deploys (e.g. a standalone
+ * Cloudflare Worker) it is not, so we fall back to a direct OpenAI key.
+ */
+export function resolveAiConfig(): { url: string; key: string; model: string } {
+  const lovableKey = process.env["LOVABLE_API_KEY"];
+  if (lovableKey) {
+    return {
+      url: "https://ai.gateway.lovable.dev/v1/chat/completions",
+      key: lovableKey,
+      model: "google/gemini-2.5-flash",
+    };
+  }
+  const openaiKey = process.env["OPENAI_API_KEY"];
+  if (openaiKey) {
+    return {
+      url: "https://api.openai.com/v1/chat/completions",
+      key: openaiKey,
+      model: "gpt-4o-mini",
+    };
+  }
+  throw new Error("Missing AI key (LOVABLE_API_KEY or OPENAI_API_KEY)");
+}
+
+export async function buildLessonPackage(
+  data: Input,
+  ai: { url: string; key: string; model: string },
+): Promise<LessonPackage> {
   const parts: UserPart[] = [{ type: "text", text: buildPrompt(data) }];
 
   if (data.mode === "text") {
@@ -279,14 +307,14 @@ export async function buildLessonPackage(data: Input, apiKey: string): Promise<L
     };
   });
 
-  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  const response = await fetch(ai.url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${ai.key}`,
     },
     body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
+      model: ai.model,
       messages: [{ role: "user", content: messageContent }],
       response_format: { type: "json_object" },
       max_tokens: 16000,

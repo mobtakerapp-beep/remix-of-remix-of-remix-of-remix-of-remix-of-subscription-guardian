@@ -32,10 +32,8 @@ export const generateLessonPackage = createServerFn({ method: "POST" })
       throw new Error(status.plan === "free" ? "limit_reached" : "subscription_expired");
     }
 
-    const key = process.env["LOVABLE_API_KEY"];
-    if (!key) throw new Error("Missing LOVABLE_API_KEY");
-
-    const { buildLessonPackage } = await import("./lesson.server");
+    const { buildLessonPackage, resolveAiConfig } = await import("./lesson.server");
+    const ai = resolveAiConfig();
 
     if (data.mode === "youtube") {
       const { fetchYoutubeTranscript } = await import("./youtube.server");
@@ -44,9 +42,9 @@ export const generateLessonPackage = createServerFn({ method: "POST" })
       const { title, text } = await fetchYoutubeTranscript(data.youtubeUrl ?? "", transcriptKey);
 
       const { youtubeUrl: _ignored, ...rest } = data;
-      return buildLessonPackage({ ...rest, mode: "text", text: `${title}\n\n${text}` }, key);
+      return buildLessonPackage({ ...rest, mode: "text", text: `${title}\n\n${text}` }, ai);
     }
 
     const { youtubeUrl: _unused, ...payload } = data;
-    return buildLessonPackage(payload as never, key);
+    return buildLessonPackage(payload as never, ai);
   });
