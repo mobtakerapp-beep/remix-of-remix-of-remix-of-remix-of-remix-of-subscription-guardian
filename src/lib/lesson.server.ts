@@ -1,4 +1,5 @@
 import { uid, type LessonPackage } from "./lesson-types";
+import { getRuntimeSecret } from "./runtime-env.server";
 
 type Input = {
   mode: "text" | "pdf" | "image";
@@ -248,7 +249,7 @@ function normalize(parsed: any, data: Input): LessonPackage {
  * Cloudflare Worker) it is not, so we fall back to a direct OpenAI key.
  */
 export function resolveAiConfig(): { url: string; key: string; model: string } {
-  const lovableKey = process.env["LOVABLE_API_KEY"];
+  const lovableKey = getRuntimeSecret("LOVABLE_API_KEY");
   if (lovableKey) {
     return {
       url: "https://ai.gateway.lovable.dev/v1/chat/completions",
@@ -256,7 +257,7 @@ export function resolveAiConfig(): { url: string; key: string; model: string } {
       model: "google/gemini-2.5-flash",
     };
   }
-  const openaiKey = process.env["OPENAI_API_KEY"];
+  const openaiKey = getRuntimeSecret("OPENAI_API_KEY");
   if (openaiKey) {
     return {
       url: "https://api.openai.com/v1/chat/completions",

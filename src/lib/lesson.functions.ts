@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireAppAuth } from "@/lib/app-auth-middleware";
+import { getRuntimeSecret } from "./runtime-env.server";
 import { getSubscriptionStatus } from "./subscription.server";
 
 const InputSchema = z.object({
@@ -38,7 +39,7 @@ export const generateLessonPackage = createServerFn({ method: "POST" })
     if (data.mode === "youtube") {
       const { fetchYoutubeTranscript } = await import("./youtube.server");
       // Whisper fallback only works with a real OpenAI key; never send the Lovable key there.
-      const transcriptKey = process.env["OPENAI_API_KEY"];
+      const transcriptKey = getRuntimeSecret("OPENAI_API_KEY");
       const { title, text } = await fetchYoutubeTranscript(data.youtubeUrl ?? "", transcriptKey);
 
       const { youtubeUrl: _ignored, ...rest } = data;
