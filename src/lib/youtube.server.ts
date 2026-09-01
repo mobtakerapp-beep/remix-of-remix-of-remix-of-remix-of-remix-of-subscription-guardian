@@ -257,7 +257,8 @@ async function readTranscriptionResponse(response: Response): Promise<string> {
  * runs in the edge runtime (no yt-dlp / child_process).
  */
 export async function transcribeYoutubeAudio(videoId: string, apiKey?: string): Promise<string> {
-  const lovableKey = process.env["LOVABLE_API_KEY"];
+  const { getRuntimeSecret } = await import("./runtime-env.server");
+  const lovableKey = getRuntimeSecret("LOVABLE_API_KEY");
   // Prefer Lovable AI (no extra key / quota needed); fall back to OpenAI directly.
   const providers: { url: string; key: string; model: string; openai: boolean }[] = [];
   if (lovableKey)
