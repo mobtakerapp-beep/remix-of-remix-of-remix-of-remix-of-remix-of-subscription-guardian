@@ -417,39 +417,72 @@ export async function transcribeYoutubeAudio(videoId: string, apiKey?: string): 
 
     for (const p of providers) {
       try {
-        const form = new FormData();
         const file = audioFileDetails(format.mimeType);
-        form.append(
-          "file",
-          new Blob([audio.slice().buffer as ArrayBuffer], { type: file.mime }),
-          file.name,
-        );
-        form.append("model", p.model);
-        form.append("response_format", "json");
+        let response: Response;
 
-        const response = await fetch(p.url, {
-          method: "POST",
-          headers: p.openai
-            ? { Authorization: `Bearer ${p.key}` }
-            : { "Lovable-API-Key": p.key, "X-Lovable-AIG-SDK": "direct-fetch" },
-          body: form,
-        });
+        if (p.gemini) {
+          let binary = "";
+          for (let i = 0; i < audio.length; i += 0x8000) {
+            binary += String.fromCharCode(...audio.subarray(i, i + 0x8000));
+          }
+          response = await fetch(p.url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-goog-api-key": p.key },
+            body: JSON.stringify({
+              contents: [
+                {
+                  role: "user",
+                  parts: [
+                    { text: "Transcribe this audio verbatim. Return only the transcript text." },
+                    { inline_data: { mime_type: file.mime, data: btoa(binary) } },
+                  ],
+                },
+              ],
+            }),
+          });
+        } else {
+          const form = new FormData();
+          form.append(
+            "file",
+            new Blob([audio.slice().buffer as ArrayBuffer], { type: file.mime }),
+            file.name,
+          );
+          form.append("model", p.model);
+          form.append("response_format", "json");
+          response = await fetch(p.url, {
+            method: "POST",
+            headers: { "Lovable-API-Key": p.key, "X-Lovable-AIG-SDK": "direct-fetch" },
+            body: form,
+          });
+        }
+
         if (!response.ok) {
           const providerError = (await response.text()).slice(0, 500);
           console.error("[youtube] transcription provider rejected audio", {
-            provider: p.openai ? "openai" : "lovable",
+            provider: p.gemini ? "gemini" : "lovable",
             status: response.status,
             error: providerError,
           });
-          if (p.openai && response.status === 401) lastError = new Error("openai_invalid_key");
-          else if (p.openai && (response.status === 429 || response.status === 402))
-            lastError = new Error("openai_quota");
+          if (p.gemini && (response.status === 401 || response.status === 403))
+            lastError = new Error("gemini_invalid_key");
+          else if (p.gemini && (response.status === 429 || response.status === 402))
+            lastError = new Error("gemini_quota");
           else lastError = new Error("youtube_transcription_failed");
           continue;
         }
 
-        const text = (await readTranscriptionResponse(response)).replace(/\s{2,}/g, " ").trim();
+        let text: string;
+        if (p.gemini) {
+          const json = (await response.json()) as {
+            candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+          };
+          text = (json.candidates?.[0]?.content?.parts ?? []).map((x) => x.text ?? "").join("");
+        } else {
+          text = await readTranscriptionResponse(response);
+        }
+        text = text.replace(/\s{2,}/g, " ").trim();
         if (text) return text;
+
       } catch (error) {
         console.error("[youtube] transcription request failed", error);
         lastError = error instanceof Error ? error : new Error("youtube_transcription_failed");
